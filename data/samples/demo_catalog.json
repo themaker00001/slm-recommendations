@@ -1,0 +1,37 @@
+[
+  {"item_id": "salt-1", "title": "Morton Iodized Table Salt, 26 oz", "brand": "Morton", "category": "Pantry", "price": 2.49, "icon": "🧂", "group": "salt"},
+  {"item_id": "salt-2", "title": "Diamond Crystal Kosher Salt, 3 lb Box", "brand": "Diamond Crystal", "category": "Pantry", "price": 5.99, "icon": "🧂", "group": "salt"},
+  {"item_id": "salt-3", "title": "Himalayan Pink Salt, Fine Grain, 2 lb Bag", "brand": "Sherpa Pink", "category": "Pantry", "price": 7.49, "icon": "🧂", "group": "salt"},
+  {"item_id": "salt-4", "title": "Salt & Vinegar Potato Chips, 7.75 oz", "brand": "Lay's", "category": "Snacks", "price": 3.29, "icon": "🍟", "group": "salt"},
+  {"item_id": "salt-5", "title": "Salted Pretzel Sticks, 16 oz", "brand": "Rold Gold", "category": "Snacks", "price": 3.79, "icon": "🥨", "group": "salt"},
+
+  {"item_id": "coffee-1", "title": "Classic Roast Ground Coffee, 30.5 oz", "brand": "Folgers", "category": "Pantry", "price": 9.99, "icon": "☕", "group": "coffee"},
+  {"item_id": "coffee-2", "title": "Pike Place Whole Bean Coffee, 12 oz", "brand": "Starbucks", "category": "Pantry", "price": 11.49, "icon": "☕", "group": "coffee"},
+  {"item_id": "coffee-3", "title": "Basket Coffee Filters, 200 ct", "brand": "Mr. Coffee", "category": "Home", "price": 4.29, "icon": "🧻", "group": "coffee"},
+  {"item_id": "coffee-4", "title": "Sparkling Energy Drink, Coffee Flavor, 12 oz", "brand": "Celsius", "category": "Beverages", "price": 2.29, "icon": "🥤", "group": "coffee"},
+  {"item_id": "coffee-5", "title": "Ombre Ceramic Coffee Mug, 14 oz", "brand": "Threshold", "category": "Home", "price": 6.99, "icon": "🍵", "group": "coffee"},
+
+  {"item_id": "headphones-1", "title": "WH-1000XM5 Wireless Noise-Canceling Headphones", "brand": "Sony", "category": "Electronics", "price": 349.99, "icon": "🎧", "group": "headphones"},
+  {"item_id": "headphones-2", "title": "AirPods Pro (2nd Generation)", "brand": "Apple", "category": "Electronics", "price": 249.00, "icon": "🎧", "group": "headphones"},
+  {"item_id": "headphones-3", "title": "Tune 510BT Wireless On-Ear Headphones", "brand": "JBL", "category": "Electronics", "price": 39.95, "icon": "🎧", "group": "headphones"},
+  {"item_id": "headphones-4", "title": "Aux Audio Cable, 3.5mm, 6 ft", "brand": "Amazon Basics", "category": "Electronics", "price": 6.49, "icon": "🔌", "group": "headphones"},
+  {"item_id": "headphones-5", "title": "Clear Case for iPhone 15", "brand": "OtterBox", "category": "Electronics", "price": 19.99, "icon": "📱", "group": "headphones"},
+
+  {"item_id": "candles-1", "title": "Rainbow Birthday Candles, 24 ct", "brand": "Wilton", "category": "Party", "price": 2.99, "icon": "🎂", "group": "candles"},
+  {"item_id": "candles-2", "title": "Number \"5\" Gold Birthday Candle", "brand": "Party City", "category": "Party", "price": 3.49, "icon": "🕯️", "group": "candles"},
+  {"item_id": "candles-3", "title": "Happy Birthday Foil Balloon Bouquet", "brand": "Party City", "category": "Party", "price": 8.99, "icon": "🎈", "group": "candles"},
+  {"item_id": "candles-4", "title": "Funfetti Cake Mix, 15.25 oz", "brand": "Pillsbury", "category": "Baking", "price": 2.49, "icon": "🧁", "group": "candles"},
+  {"item_id": "candles-5", "title": "Unscented Tealight Candles, 50 ct", "brand": "Ikea", "category": "Home", "price": 4.99, "icon": "🕯️", "group": "candles"},
+
+  {"item_id": "orange-1", "title": "Fresh Navel Oranges, 4 lb Bag", "brand": "Sunkist", "category": "Produce", "price": 5.49, "icon": "🍊", "group": "orange"},
+  {"item_id": "orange-2", "title": "100% Orange Juice, 52 oz", "brand": "Tropicana", "category": "Beverages", "price": 4.99, "icon": "🧃", "group": "orange"},
+  {"item_id": "orange-3", "title": "Orange Soda, 12 Pack Cans", "brand": "Crush", "category": "Beverages", "price": 6.99, "icon": "🥤", "group": "orange"},
+  {"item_id": "orange-4", "title": "Orange Food Coloring Gel", "brand": "Wilton", "category": "Baking", "price": 3.99, "icon": "🎨", "group": "orange"},
+  {"item_id": "orange-5", "title": "Orange Scented Dish Soap, 16 oz", "brand": "Mrs. Meyer's", "category": "Household", "price": 4.49, "icon": "🧴", "group": "orange"},
+
+  {"item_id": "snacks-1", "title": "Dark Chocolate Nut Bars, 12 ct", "brand": "KIND", "category": "Snacks", "price": 8.99, "icon": "🍫", "group": "healthy snacks"},
+  {"item_id": "snacks-2", "title": "Unsalted Mixed Nuts, 16 oz", "brand": "Planters", "category": "Snacks", "price": 7.49, "icon": "🥜", "group": "healthy snacks"},
+  {"item_id": "snacks-3", "title": "Crunchy Granola Bars, 12 ct", "brand": "Nature Valley", "category": "Snacks", "price": 4.29, "icon": "🌾", "group": "healthy snacks"},
+  {"item_id": "snacks-4", "title": "Nacho Cheese Tortilla Chips, 9.75 oz", "brand": "Doritos", "category": "Snacks", "price": 4.79, "icon": "🌽", "group": "healthy snacks"},
+  {"item_id": "snacks-5", "title": "Chocolate Sandwich Cookies, Family Size", "brand": "Oreo", "category": "Snacks", "price": 5.29, "icon": "🍪", "group": "healthy snacks"}
+]

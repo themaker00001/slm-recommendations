@@ -104,16 +104,30 @@ python serve/app.py
 # open http://localhost:8000
 ```
 
-A single-page local UI (FastAPI backend, plain HTML/JS frontend, no build
-step, no CDN dependency) for trying queries and candidate items by hand:
+A local search-engine-style UI (FastAPI backend, plain HTML/JS frontend, no
+build step, no CDN dependency) that demonstrates the whole funnel the blog
+describes, not just the model in isolation:
 
-- **Run local SLM** — scores every candidate with the trained bi-encoder
-  checkpoint and ranks them, exactly like `serve/predict.py`.
-- **Ask local teacher (Ollama)** — labels the same pairs live with your
-  chosen local Ollama model, so you can compare the small student's
-  predictions against the bigger local model's judgment side by side.
-- A status bar shows whether a trained checkpoint is loaded and whether
-  Ollama is reachable, so it's obvious what's missing if something's blank.
+- **Search bar + suggestion chips** run a small built-in demo catalog
+  (`data/samples/demo_catalog.json`, ~30 items across salt/coffee/
+  headphones/birthday-candles/orange/healthy-snacks — several picked to
+  match the blog's own examples) through a **naive keyword retrieval** step
+  first (`serve/app.py`'s `keyword_retrieve`) — recall-optimized, no notion
+  of intent, so it happily retrieves "salt & vinegar chips" for "salt".
+- The **relevance filter toggle** shows the difference this project exists
+  to make: off, you see raw keyword-retrieval results, irrelevant items
+  included; on, the trained SLM scores and reranks the same candidates and
+  moves anything predicted irrelevant into a collapsed "filtered out"
+  section — the same pre-auction gate `serve/predict.py` does from the CLI.
+- Each result card shows a color-coded relevance chip and a **"Why?"**
+  expander with the SLM's score, plus an **"Ask local teacher"** button that
+  calls Ollama live for that one item so you can compare the small model's
+  call against the bigger local model's judgment on the spot.
+- An **Advanced** panel below the results lets you type any custom
+  query/item pair and score it with the SLM or the teacher directly, for
+  testing outside the demo catalog.
+- A status popover shows whether a trained checkpoint is loaded and whether
+  Ollama is reachable.
 
 Nothing here calls out to the internet — the backend only talks to the local
 checkpoint file and to `localhost:11434` (Ollama).

@@ -3,53 +3,106 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SLM Relevance Tester</title>
+<title>FreshFind Search</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header>
-  <h1>SLM Relevance Tester</h1>
-  <p class="subtitle">Local query-item relevance filter, modeled on DoorDash's search-ads relevance blog post</p>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">🔎</span>
+    <div>
+      <div class="brand-name">FreshFind</div>
+      <div class="brand-tag">SLM relevance demo</div>
+    </div>
+  </div>
+
+  <div class="searchbar">
+    <span class="search-icon">⌕</span>
+    <input id="query" type="text" placeholder="Search groceries, electronics, party supplies…" autocomplete="off" value="salt">
+    <button id="search-btn">Search</button>
+  </div>
+
+  <button id="status-btn" class="status-btn" title="System status">
+    <span id="status-dot" class="status-dot status-unknown"></span> System
+  </button>
 </header>
 
-<section id="status-bar" class="status-bar">
-  <span id="status-checkpoint" class="status-pill status-unknown">checkpoint: checking…</span>
-  <span id="status-ollama" class="status-pill status-unknown">ollama: checking…</span>
-</section>
+<div id="suggested" class="suggested"></div>
+
+<div id="status-panel" class="status-panel" hidden>
+  <div class="status-row">
+    <span>Relevance model (SLM)</span>
+    <span id="status-checkpoint" class="status-value">checking…</span>
+  </div>
+  <div class="status-row">
+    <span>Local teacher (Ollama)</span>
+    <span id="status-ollama" class="status-value">checking…</span>
+  </div>
+  <p class="status-note">
+    Search runs a naive keyword retrieval over a small demo catalog (recall-first,
+    same as the blog's incumbent retrieval step), then the SLM scores and — when the
+    filter toggle is on — removes/reranks results by predicted relevance, the way it
+    sits before the ad auction in the original design.
+  </p>
+</div>
 
 <main>
-  <section class="panel">
-    <label for="query">Search query</label>
-    <input id="query" type="text" value="salt" placeholder="e.g. salt, healthy snacks, birthday candles">
+  <div class="toolbar">
+    <div class="result-count" id="result-count"></div>
+    <label class="filter-toggle">
+      <input type="checkbox" id="filter-toggle" checked>
+      <span>Relevance filter</span>
+    </label>
+  </div>
 
-    <label>Candidate items</label>
-    <div id="items"></div>
-    <button id="add-item" class="secondary">+ add item</button>
+  <div id="empty-state" class="empty-state">
+    <div class="empty-emoji">🛒</div>
+    <p>Search for something above, or try a suggestion.</p>
+  </div>
 
-    <div class="actions">
-      <button id="run-slm" class="primary">Run local SLM</button>
-      <button id="run-teacher" class="secondary">Ask local teacher (Ollama)</button>
-      <select id="teacher-model"></select>
+  <div id="results-grid" class="results-grid"></div>
+
+  <section id="filtered-out" class="filtered-out" hidden>
+    <button id="filtered-out-toggle" class="filtered-out-toggle">
+      <span id="filtered-out-count">0 results</span> filtered out as irrelevant ▾
+    </button>
+    <div id="filtered-out-grid" class="results-grid filtered-grid" hidden></div>
+  </section>
+
+  <section class="advanced">
+    <button id="advanced-toggle" class="advanced-toggle">⚙ Advanced: test a custom query / item pair ▾</button>
+    <div id="advanced-panel" class="advanced-panel" hidden>
+      <div class="advanced-row">
+        <input id="adv-query" type="text" placeholder="query, e.g. sparkling water" value="sparkling water">
+        <input id="adv-item" type="text" placeholder="item text, e.g. LaCroix Sparkling Water, Lime, 12-pack | Brand: LaCroix"
+               value="LaCroix Sparkling Water, Lime, 12-pack | Brand: LaCroix">
+      </div>
+      <div class="advanced-actions">
+        <button id="adv-run-slm" class="secondary">Score with SLM</button>
+        <button id="adv-run-teacher" class="secondary">Ask local teacher</button>
+        <select id="adv-teacher-model"></select>
+      </div>
+      <div id="adv-result" class="advanced-result"></div>
     </div>
   </section>
-
-  <section class="panel">
-    <h2>Results</h2>
-    <p class="hint">Run the SLM and/or the teacher to compare. Items are ranked by the SLM's relevance score once it has run.</p>
-    <table id="results-table">
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th>SLM label</th>
-          <th>SLM score</th>
-          <th>Teacher label</th>
-          <th>Teacher reason</th>
-        </tr>
-      </thead>
-      <tbody id="results-body"></tbody>
-    </table>
-  </section>
 </main>
+
+<template id="card-template">
+  <article class="card">
+    <div class="card-top">
+      <span class="card-icon"></span>
+      <span class="card-relevance"></span>
+    </div>
+    <div class="card-title"></div>
+    <div class="card-meta">
+      <span class="card-brand"></span>
+      <span class="card-price"></span>
+    </div>
+    <div class="card-tags"></div>
+    <button class="card-why">Why? ▾</button>
+    <div class="card-why-panel" hidden></div>
+  </article>
+</template>
 
 <script src="/static/app.js"></script>
 </body>
