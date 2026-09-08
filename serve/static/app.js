@@ -125,7 +125,9 @@ function renderResults(data) {
 
   if (data.results.length === 0) {
     emptyState.hidden = false;
-    emptyState.querySelector("p").textContent = `No candidates matched "${data.query}" in the demo catalog.`;
+    emptyState.querySelector("p").textContent =
+      `No candidates matched "${data.query}" in the demo catalog (it only covers ` +
+      `a few product categories) — try one of the suggestions above.`;
     resultCount.textContent = "";
     filteredOutSection.hidden = true;
     return;

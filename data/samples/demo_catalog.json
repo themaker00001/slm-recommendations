@@ -33,5 +33,35 @@
   {"item_id": "snacks-2", "title": "Unsalted Mixed Nuts, 16 oz", "brand": "Planters", "category": "Snacks", "price": 7.49, "icon": "🥜", "group": "healthy snacks"},
   {"item_id": "snacks-3", "title": "Crunchy Granola Bars, 12 ct", "brand": "Nature Valley", "category": "Snacks", "price": 4.29, "icon": "🌾", "group": "healthy snacks"},
   {"item_id": "snacks-4", "title": "Nacho Cheese Tortilla Chips, 9.75 oz", "brand": "Doritos", "category": "Snacks", "price": 4.79, "icon": "🌽", "group": "healthy snacks"},
-  {"item_id": "snacks-5", "title": "Chocolate Sandwich Cookies, Family Size", "brand": "Oreo", "category": "Snacks", "price": 5.29, "icon": "🍪", "group": "healthy snacks"}
+  {"item_id": "snacks-5", "title": "Chocolate Sandwich Cookies, Family Size", "brand": "Oreo", "category": "Snacks", "price": 5.29, "icon": "🍪", "group": "healthy snacks"},
+
+  {"item_id": "fruits-1", "title": "Envy Apples, 3 lb Bag", "brand": "Envy", "category": "Fruit", "price": 5.99, "icon": "🍎", "group": "fruits"},
+  {"item_id": "fruits-2", "title": "Organic Bananas, Bunch", "brand": "Chiquita", "category": "Fruit", "price": 1.99, "icon": "🍌", "group": "fruits"},
+  {"item_id": "fruits-3", "title": "Red Seedless Grapes, 2 lb", "brand": "Sun World", "category": "Fruit", "price": 6.49, "icon": "🍇", "group": "fruits"},
+  {"item_id": "fruits-4", "title": "Fruit Roll-Ups Variety Pack, 10 ct", "brand": "Betty Crocker", "category": "Snacks", "price": 3.49, "icon": "🍬", "group": "fruits"},
+  {"item_id": "fruits-5", "title": "Fruity Rings Cereal, 12 oz", "brand": "Post", "category": "Breakfast", "price": 3.99, "icon": "🥣", "group": "fruits"},
+
+  {"item_id": "veg-1", "title": "Baby Carrots, 1 lb Bag", "brand": "Bolthouse Farms", "category": "Vegetable", "price": 1.79, "icon": "🥕", "group": "vegetables"},
+  {"item_id": "veg-2", "title": "Broccoli Crowns, 1 lb", "brand": "Fresh Express", "category": "Vegetable", "price": 2.49, "icon": "🥦", "group": "vegetables"},
+  {"item_id": "veg-3", "title": "Organic Baby Spinach, 5 oz", "brand": "Earthbound Farm", "category": "Vegetable", "price": 3.99, "icon": "🥬", "group": "vegetables"},
+  {"item_id": "veg-4", "title": "Vegetable Beef Soup, 18.8 oz Can", "brand": "Campbell's", "category": "Pantry", "price": 2.29, "icon": "🥫", "group": "vegetables"},
+  {"item_id": "veg-5", "title": "Garden Vegetable Cream Cheese, 8 oz", "brand": "Philadelphia", "category": "Dairy", "price": 3.29, "icon": "🧀", "group": "vegetables"},
+
+  {"item_id": "dairy-1", "title": "Whole Milk, Half Gallon", "brand": "Horizon Organic", "category": "Dairy", "price": 4.29, "icon": "🥛", "group": "dairy"},
+  {"item_id": "dairy-2", "title": "Large Grade A Eggs, Dozen", "brand": "Happy Egg Co.", "category": "Dairy", "price": 4.99, "icon": "🥚", "group": "dairy"},
+  {"item_id": "dairy-3", "title": "Sharp Cheddar Cheese Block, 8 oz", "brand": "Tillamook", "category": "Dairy", "price": 5.49, "icon": "🧀", "group": "dairy"},
+  {"item_id": "dairy-4", "title": "Non-Dairy Oat Milk Creamer, 32 oz", "brand": "Califia Farms", "category": "Beverages", "price": 5.99, "icon": "🥥", "group": "dairy"},
+  {"item_id": "dairy-5", "title": "Dairy-Free Coconut Milk Yogurt, 5.3 oz", "brand": "So Delicious", "category": "Dairy Alternative", "price": 1.99, "icon": "🥥", "group": "dairy"},
+
+  {"item_id": "bakery-1", "title": "Whole Wheat Sandwich Bread, 20 oz", "brand": "Dave's Killer Bread", "category": "Bakery", "price": 5.49, "icon": "🍞", "group": "bakery"},
+  {"item_id": "bakery-2", "title": "Plain Bagels, 6 ct", "brand": "Thomas'", "category": "Bakery", "price": 3.99, "icon": "🥯", "group": "bakery"},
+  {"item_id": "bakery-3", "title": "Blueberry Muffins, 4 ct", "brand": "Otis Spunkmeyer", "category": "Bakery", "price": 4.49, "icon": "🧁", "group": "bakery"},
+  {"item_id": "bakery-4", "title": "Italian Style Bread Crumbs, 15 oz", "brand": "Progresso", "category": "Pantry", "price": 2.79, "icon": "🍚", "group": "bakery"},
+  {"item_id": "bakery-5", "title": "Breaded Chicken Tenders, Frozen, 24 oz", "brand": "Tyson", "category": "Frozen", "price": 8.99, "icon": "🍗", "group": "bakery"},
+
+  {"item_id": "cleaning-1", "title": "All-Purpose Cleaning Spray, 32 oz", "brand": "Method", "category": "Household", "price": 4.49, "icon": "🧽", "group": "cleaning"},
+  {"item_id": "cleaning-2", "title": "Paper Towels, 6 Rolls", "brand": "Bounty", "category": "Household", "price": 9.99, "icon": "🧻", "group": "cleaning"},
+  {"item_id": "cleaning-3", "title": "Laundry Detergent, 100 oz", "brand": "Tide", "category": "Household", "price": 13.99, "icon": "🧺", "group": "cleaning"},
+  {"item_id": "cleaning-4", "title": "Dish Soap, Lemon Scent, 16 oz", "brand": "Dawn", "category": "Household", "price": 3.29, "icon": "🧴", "group": "cleaning"},
+  {"item_id": "cleaning-5", "title": "Cleaning Gloves, Reusable, Medium", "brand": "O-Cedar", "category": "Household", "price": 4.99, "icon": "🧤", "group": "cleaning"}
 ]

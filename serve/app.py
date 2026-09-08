@@ -58,11 +58,15 @@ def keyword_retrieve(query: str, limit: int = 12) -> list[dict]:
     q_tokens = {t for t in tokenize(query) if len(t) >= 3}
     scored = []
     for item in CATALOG:
-        i_tokens = tokenize(f"{item['title']} {item['brand']} {item['category']}")
-        # item token starting with the query token (not the reverse -- that
-        # direction let short item tokens like the "s" in "Meyer's" match
-        # any query trivially) catches stems like "salted" for query "salt".
-        matches = sum(1 for qt in q_tokens for it in i_tokens if it.startswith(qt))
+        i_tokens = [t for t in tokenize(f"{item['title']} {item['brand']} {item['category']}")
+                    if len(t) >= 3]
+        # Match in either direction (item token starts with query token, or
+        # vice versa) so plural/singular mismatches work ("fruits" query vs
+        # "Fruit" category, "salt" query vs "salted" item) -- the length>=3
+        # floor on BOTH sides is what keeps this safe: without it, short
+        # fragments like the "s" in "Meyer's" matched every query trivially.
+        matches = sum(1 for qt in q_tokens for it in i_tokens
+                       if it.startswith(qt) or qt.startswith(it))
         if matches > 0:
             scored.append((matches, item))
     scored.sort(key=lambda pair: -pair[0])
