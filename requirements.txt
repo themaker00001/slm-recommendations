@@ -5,3 +5,6 @@ anthropic>=0.34
 scikit-learn>=1.4
 numpy>=1.26
 tqdm>=4.66
+requests>=2.31
+fastapi>=0.110
+uvicorn>=0.29

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLM Relevance Tester</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>SLM Relevance Tester</h1>
+  <p class="subtitle">Local query-item relevance filter, modeled on DoorDash's search-ads relevance blog post</p>
+</header>
+
+<section id="status-bar" class="status-bar">
+  <span id="status-checkpoint" class="status-pill status-unknown">checkpoint: checking…</span>
+  <span id="status-ollama" class="status-pill status-unknown">ollama: checking…</span>
+</section>
+
+<main>
+  <section class="panel">
+    <label for="query">Search query</label>
+    <input id="query" type="text" value="salt" placeholder="e.g. salt, healthy snacks, birthday candles">
+
+    <label>Candidate items</label>
+    <div id="items"></div>
+    <button id="add-item" class="secondary">+ add item</button>
+
+    <div class="actions">
+      <button id="run-slm" class="primary">Run local SLM</button>
+      <button id="run-teacher" class="secondary">Ask local teacher (Ollama)</button>
+      <select id="teacher-model"></select>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Results</h2>
+    <p class="hint">Run the SLM and/or the teacher to compare. Items are ranked by the SLM's relevance score once it has run.</p>
+    <table id="results-table">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>SLM label</th>
+          <th>SLM score</th>
+          <th>Teacher label</th>
+          <th>Teacher reason</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -35,7 +35,12 @@ query) or a secondary intent (e.g. orange juice for "orange"), missing some \
 specific attribute the query implied.
 2 = Highly relevant: a direct hit that precisely satisfies the query's intent.
 
-Respond with ONLY a JSON object on a single line: {"label": 0|1|2, "reason": "<=12 words"}
+Judge intent, not keyword overlap -- a title that merely contains the query's \
+words is not automatically relevant. For example, a query for "salt" should \
+score plain table/kosher salt as 2, but should score "salt & vinegar potato \
+chips" as 0: it only shares a word with the query, not the intent (buying salt).
+
+Respond with ONLY a JSON object on a single line: {{"label": 0|1|2, "reason": "<=12 words"}}
 
 QUERY: {query}
 ITEM: {item}
