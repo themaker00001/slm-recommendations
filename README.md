@@ -87,7 +87,7 @@ Or step by step:
 ```bash
 python data/download_esci.py --limit 1500
 python teacher/label_with_ollama.py --model qwen3:14b --limit 1500   # or --dry-run
-python model/train.py --loss cross_entropy --epochs 5                # or --loss coral
+python model/train.py --data data/cache/teacher_labels.jsonl --epochs 5
 python serve/predict.py --query "salt" --candidates data/samples/salt_candidates.json
 ```
 
@@ -96,6 +96,73 @@ and how they'd rank, e.g. for the query "salt": table salt and kosher salt
 rank as highly relevant, "salt & vinegar chips" gets caught as a weak
 keyword-overlap match (exactly the failure mode the blog opens with), and
 milk gets filtered out entirely.
+
+## Training data: what actually moved the needle (and what didn't)
+
+Training on ESCI alone produces a model that's inconsistent on the frontend's
+demo catalog — not because ESCI is bad data, but because ESCI is long,
+specific e-commerce search phrases (`"someday is not a day of the week
+shirt"`) while the catalog and its queries are short and generic (`"salt"`,
+`"orange"`). Three things were tried, in order, testing against the actual
+demo catalog each time rather than trusting the offline validation number
+alone:
+
+1. **More epochs on the same 800 ESCI pairs** — did nothing. Validation
+   accuracy plateaued at the same 75% it hit by epoch 4; training loss kept
+   dropping toward zero while validation loss climbed. Textbook overfitting,
+   not a fix.
+2. **Synthetic data augmented from the raw ESCI pairs** (label-preserving
+   query/item truncation for the underrepresented classes, plus a small
+   batch of auto-labeled random cross-pairs) — [`data/augment_synthetic.py`](data/augment_synthetic.py).
+   Validation accuracy rose to 87%, but real behavior on the demo catalog
+   didn't improve — if anything some cases got worse (a query that used to
+   show varied scores collapsed to "everything is irrelevant"). The
+   validation number was partly measuring the synthetic examples' own
+   easiness, not real generalization. Kept in the repo since it's a real,
+   reusable technique — just not the fix for *this* problem.
+3. **Real domain-matched labeled data** — [`data/build_grocery_domain_pairs.py`](data/build_grocery_domain_pairs.py)
+   generates every (query, item) pair from the demo catalog's own 11
+   categories crossed with all 55 items, and the local Ollama teacher labels
+   all 605 of them for real. Mixing the ~71 useful pairs (same-category
+   matches, including the deliberate keyword-overlap traps, plus a few
+   genuinely ambiguous cross-category hits) straight into the 800 ESCI pairs
+   improved two hand-tested cases ("salt", "orange") but broke four other
+   categories completely (headphones, candles, fruits, dairy all came back
+   100% wrong) — 71 examples spread across 11 categories inside ~1000 total
+   rows is too thin a signal per category to reliably learn 11 separate
+   associations. **Oversampling** those 71 examples 8x (repeating them in the
+   training file so they carry proportionally more weight) fixed that: full
+   catalog re-test came back correct or reasonable on 10 of the 11
+   categories, with only individual item-level misses left (a coffee mug
+   marked "highly relevant", an unrelated soup for "candles").
+
+   That run's 85% validation accuracy turned out to be **inflated by a data
+   leak** (see below) — after fixing it, honest validation accuracy on this
+   same data is **73.2%**, and the real catalog behavior is roughly a wash
+   against the leaky version (some categories better, a couple worse,
+   nothing decisively different). That's the actual point: the leaky 85%
+   never corresponded to better real-world quality, it just *looked* better
+   on a metric that was quietly cheating.
+
+[`data/merge_training_data.py`](data/merge_training_data.py) does this
+merge-and-oversample step. One methodological detail it handles that's easy
+to get wrong: **the train/val split has to happen before oversampling, not
+after.** Duplicating a row 8 times and then handing the whole file to a
+random 80/20 split lets some copies land in "train" and others in "val" by
+chance — so the model can be validated on an example it was also trained on,
+quietly inflating the accuracy number. The script splits the *unique*
+examples first, then oversamples only the training side; `model/train.py`
+respects an explicit `"split"` field per row when the whole file carries one,
+instead of re-splitting randomly.
+
+```bash
+python data/build_grocery_domain_pairs.py
+python teacher/label_with_ollama.py \
+  --in data/raw/grocery_domain_pairs.jsonl \
+  --out data/cache/grocery_domain_labels.jsonl
+python data/merge_training_data.py --repeat 8
+python model/train.py --data data/cache/teacher_labels_merged.jsonl --epochs 8
+```
 
 ## Frontend: testing it interactively
 
@@ -135,7 +202,10 @@ checkpoint file and to `localhost:11434` (Ollama).
 ## Repo layout
 
 ```
-data/download_esci.py         sample public query-item pairs
+data/download_esci.py           sample public ESCI query-item pairs
+data/build_grocery_domain_pairs.py  generate demo-catalog-style query x item pairs
+data/merge_training_data.py     leakage-safe merge + oversample of ESCI + domain-matched data
+data/augment_synthetic.py       label-preserving text perturbation (didn't fix the real problem, kept anyway)
 teacher/label_with_ollama.py  LLM teacher (local, default): batch-labels pairs 0/1/2 via Ollama
 teacher/label_with_claude.py  LLM teacher (cloud, optional): same rubric via the Claude API
 model/bi_encoder.py           DistilBERT bi-encoder student

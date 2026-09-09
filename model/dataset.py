@@ -23,6 +23,19 @@ class RelevanceDataset(Dataset):
     def __len__(self):
         return len(self.rows)
 
+    def explicit_split_indices(self):
+        """If every row carries a "split": "train"/"val" field (set by a data
+        prep script that needs to control the split itself -- e.g. to keep
+        oversampled duplicates of the same underlying example entirely on one
+        side, which a random split could otherwise leak across), return
+        (train_indices, val_indices). Returns None if the field isn't present
+        on every row, so train.py falls back to its own random split."""
+        if not self.rows or any("split" not in row for row in self.rows):
+            return None
+        train_idx = [i for i, row in enumerate(self.rows) if row["split"] == "train"]
+        val_idx = [i for i, row in enumerate(self.rows) if row["split"] == "val"]
+        return train_idx, val_idx
+
     def __getitem__(self, idx):
         row = self.rows[idx]
         query_enc = self.tokenizer(row["query"], truncation=True,

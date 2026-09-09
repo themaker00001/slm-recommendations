@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Subset, random_split
 from transformers import AutoTokenizer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -99,11 +99,20 @@ def main():
     if len(dataset) == 0:
         sys.exit(f"No labeled rows found in {args.data}. Run teacher/label_with_claude.py first.")
 
-    val_size = max(1, int(len(dataset) * args.val_split))
-    train_size = len(dataset) - val_size
-    train_ds, val_ds = random_split(dataset, [train_size, val_size],
-                                     generator=torch.Generator().manual_seed(args.seed))
-    print(f"Train: {len(train_ds)}  Val: {len(val_ds)}")
+    explicit_split = dataset.explicit_split_indices()
+    if explicit_split is not None:
+        # Respect a data-prep-assigned split (e.g. oversampled duplicates of
+        # the same underlying example, kept entirely on one side so a random
+        # split can't leak copies of a training example into validation).
+        train_idx, val_idx = explicit_split
+        train_ds, val_ds = Subset(dataset, train_idx), Subset(dataset, val_idx)
+        print(f"Train: {len(train_ds)}  Val: {len(val_ds)}  (explicit split from data file)")
+    else:
+        val_size = max(1, int(len(dataset) * args.val_split))
+        train_size = len(dataset) - val_size
+        train_ds, val_ds = random_split(dataset, [train_size, val_size],
+                                         generator=torch.Generator().manual_seed(args.seed))
+        print(f"Train: {len(train_ds)}  Val: {len(val_ds)}")
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size)
