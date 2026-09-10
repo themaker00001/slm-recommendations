@@ -118,6 +118,20 @@ The demo catalog's naive keyword matcher can only find items that share a word s
 
 The union of both signals ("cleaning" now returns 6 relevant items instead of 2) is a clear net improvement, but it also surfaces a new failure mode worth naming honestly: expanding recall exposes the relevance model to candidate pairs it was never well-calibrated for. On one query, "Envy Apples" — retrieved only via semantic similarity — was scored "highly relevant" for the query "salt," which is wrong. That's not a retrieval bug; it's the relevance model's blind spot becoming visible now that retrieval can actually reach it. Fixing it would mean the same domain-matched-data treatment described above, applied to the newly-expanded candidate pool.
 
+## Real distillation vs. label generation
+
+Everywhere else in this repo, "teacher" is a loose term: the LLM produces a single label per example and is never touched again — the student then trains against that label with ordinary supervised cross-entropy. That's LLM-as-annotator, not knowledge distillation in the technical sense, which normally means training the student against the teacher's *full probability distribution* over the classes (Hinton et al., 2015), not just its top pick.
+
+This repo also implements the real version, kept fully segregated from the rest of the pipeline, to test whether it actually helps here:
+
+- [`teacher/label_with_ollama_soft.py`](teacher/label_with_ollama_soft.py) extracts the teacher's genuine confidence distribution over `{0, 1, 2}` from Ollama's token-level `logprobs` (asking for a bare digit rather than a JSON object, so the very first generated token is the answer), instead of keeping only the winning label.
+- [`model/distill_loss.py`](model/distill_loss.py) implements temperature-scaled soft cross-entropy against that distribution.
+- [`model/distill_dataset.py`](model/distill_dataset.py) and [`model/train_distill.py`](model/train_distill.py) are separate from the hard-label dataset/training code end to end — nothing shared, so this experiment can't silently affect the deployed pipeline.
+
+**Result: no measurable difference.** Trained on the identical 800 ESCI pairs, a hard-label baseline and the distilled model score identically — **74.38% accuracy each** — when evaluated against the same held-out set and the same ground truth. (Each script's own self-reported number looked different, 74.4% vs. 81.3%, but that gap was an artifact of measuring against two different hard-label sources that only agreed with each other 89% of the time — not a real result. Comparing both checkpoints against one consistent ground truth erased it entirely.)
+
+The reason is visible before training even starts: the teacher's mean confidence in its top answer is **98.8%**, with only 4 of 800 examples showing genuine uncertainty (max probability under 60%). Distillation's entire value proposition is learning from a teacher's *doubt* — which classes it considered and rejected, not just the one it picked. A teacher that's almost never in doubt has nothing extra to distill; soft-label training degenerates to hard-label training in all but a handful of examples. This would very plausibly look different with a teacher that hedges more, or on harder/more ambiguous data than this catalog's queries — but for this teacher, on this data, it's a genuine negative result, not a bug to fix.
+
 ## Scope and limitations
 
 This is a from-scratch reimplementation of DoorDash's *architecture*, not their system or data — trained on thousands of examples on a single machine, not the hundreds of thousands to millions DoorDash used across distributed infrastructure. Several shortcuts here would need to be addressed before anything like this reached production:

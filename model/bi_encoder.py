@@ -18,7 +18,7 @@ NUM_CLASSES = 3  # 0 = irrelevant, 1 = moderately relevant, 2 = highly relevant
 
 class BiEncoderRelevanceModel(nn.Module):
     def __init__(self, backbone: str = DEFAULT_BACKBONE, embed_dim: int = DEFAULT_EMBED_DIM,
-                 head: str = "cross_entropy"):
+                 head: str = "cross_entropy", dropout: float = 0.1):
         super().__init__()
         assert head in ("cross_entropy", "coral")
         self.head_type = head
@@ -30,6 +30,12 @@ class BiEncoderRelevanceModel(nn.Module):
         # found this simpler and just as effective in production as Matryoshka
         # training, so that's what we implement here.
         self.projection = nn.Linear(hidden_size, embed_dim)
+
+        # Dropout on the projected embedding -- every training run so far
+        # has shown the same overfitting signature (train loss -> ~0 while
+        # val loss climbs) on a dataset this small, so this is fighting a
+        # problem we've directly observed, not a precautionary default.
+        self.dropout = nn.Dropout(dropout)
 
         # Bilinear scorer: score = query_emb^T W item_emb.
         # cross_entropy head -> 3 independent class logits.
@@ -48,7 +54,7 @@ class BiEncoderRelevanceModel(nn.Module):
         encoder weights across the two towers."""
         out = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         cls = out.last_hidden_state[:, 0, :]  # CLS pooling
-        return self.projection(cls)
+        return self.dropout(self.projection(cls))
 
     def forward(self, query_ids, query_mask, item_ids, item_mask) -> torch.Tensor:
         query_emb = self.encode(query_ids, query_mask)

@@ -83,6 +83,8 @@ def main():
     ap.add_argument("--epochs", type=int, default=5)
     ap.add_argument("--batch-size", type=int, default=16)
     ap.add_argument("--lr", type=float, default=2e-5)
+    ap.add_argument("--weight-decay", type=float, default=0.01)
+    ap.add_argument("--dropout", type=float, default=0.1)
     ap.add_argument("--val-split", type=float, default=0.2)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="checkpoints/bi_encoder.pt")
@@ -117,8 +119,9 @@ def main():
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size)
 
-    model = BiEncoderRelevanceModel(args.backbone, args.embed_dim, head=args.loss).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    model = BiEncoderRelevanceModel(args.backbone, args.embed_dim, head=args.loss,
+                                     dropout=args.dropout).to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
     best_acc = -1.0
     out_path = Path(args.out)
