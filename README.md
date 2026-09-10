@@ -1,59 +1,64 @@
 # SLM Relevance
 
-A small-language-model relevance filter for search results/ads, built by
-reimplementing the architecture described in DoorDash's engineering blog post
-["Using small language models to serve more relevant DoorDash search
-ads"](https://careersatdoordash.com/blog/small-language-models-to-serve-more-relevant-doordash-search-ads/)
-(June 2026).
+A small-language-model relevance filter for search results and ads, reimplementing the architecture from DoorDash's engineering blog post [*"Using small language models to serve more relevant DoorDash search ads"*](https://careersatdoordash.com/blog/small-language-models-to-serve-more-relevant-doordash-search-ads/) (June 2026) — running entirely on local, open models.
 
-## The idea
+![Relevance filter applied to a "salt" search, showing highly relevant results kept and irrelevant keyword matches collapsed into a filtered-out section](docs/screenshots/search_filtered.png)
 
-Keyword retrieval optimizes for recall and personalization optimizes for
-engagement — neither guarantees that a candidate result actually matches what
-the query meant. DoorDash's fix is a dedicated, user-agnostic **query-item
-relevance model** that sits before the ad auction and filters out results
-that are objectively off-target, on a 3-level scale:
+## Overview
+
+Keyword retrieval optimizes for recall and personalization optimizes for engagement — neither guarantees that a candidate result actually matches what a query meant. A search for "salt" will happily surface salt-and-vinegar potato chips, because the keyword overlaps even though the intent doesn't.
+
+DoorDash's fix is a dedicated, user-agnostic **query-item relevance model** that sits ahead of the ad auction and filters out results that are objectively off-target, graded on a 3-level scale:
 
 | Label | Meaning |
 |---|---|
-| 0 | Irrelevant — no meaningful intent match |
-| 1 | Moderately relevant — an acceptable substitute or secondary intent |
-| 2 | Highly relevant — a direct hit on the query's intent |
+| 0 | **Irrelevant** — no meaningful intent match |
+| 1 | **Moderately relevant** — an acceptable substitute or secondary intent |
+| 2 | **Highly relevant** — a direct hit on the query's intent |
 
-Labeling millions of query-item pairs by hand doesn't scale, so the system
-uses a **teacher-student split**:
+Labeling millions of query-item pairs by hand doesn't scale, so the system uses a **teacher-student split**:
 
-- **Teacher (offline, big, slow, expensive):** an LLM labels query-item pairs
-  in batch, mirroring human judgment.
-- **Student (online, small, fast, cheap):** a compact BERT-family bi-encoder
-  trains on the teacher's labels and serves real-time relevance scores at
-  the latency budget an ad auction needs.
+- **Teacher** (offline, large, slow) — an LLM labels query-item pairs in batch, mirroring human judgment.
+- **Student** (online, small, fast) — a compact bi-encoder trains on the teacher's labels and serves relevance scores in real time, at the latency budget an ad auction requires.
 
-## What this repo implements
+This project reimplements that architecture end to end, swapping DoorDash's proprietary systems for local, open equivalents — see [Scope and limitations](#scope-and-limitations) for exactly what's a faithful reproduction versus a demo-scale substitute.
 
-| Blog concept | This repo |
+## Architecture
+
+| DoorDash's design | This implementation |
 |---|---|
-| Proprietary 700k-example human-labeled query-item ad corpus | [`data/download_esci.py`](data/download_esci.py) samples the public [Amazon ESCI](https://github.com/amazon-science/esci-data) query-product relevance dataset as a stand-in |
-| Fine-tuned closed-source LLM teacher, labels 6 months of production traffic offline | [`teacher/label_with_ollama.py`](teacher/label_with_ollama.py) prompts a bigger **local** model (via [Ollama](https://ollama.com)) with the same 0/1/2 rubric described in the post — nothing leaves the machine. [`teacher/label_with_claude.py`](teacher/label_with_claude.py) is an optional cloud alternative if you'd rather use the Claude API. |
-| DistilBERT bi-encoder student, shared encoder weights, CLS pooling, 64-dim linear-projected embeddings, online bilinear scorer | [`model/bi_encoder.py`](model/bi_encoder.py) |
-| Cross-entropy vs. CORAL ordinal regression loss comparison | [`model/coral_loss.py`](model/coral_loss.py), selectable via `--loss` |
-| AdamW training, validation-accuracy checkpoint selection | [`model/train.py`](model/train.py) |
-| Precision@2 / NDCG@10 online evaluation metrics | [`model/evaluate.py`](model/evaluate.py) |
-| Offline embedding cache (cron job + KV store) + cheap online bilinear scoring, relevance filter before the auction | [`serve/predict.py`](serve/predict.py) (CLI) and [`serve/app.py`](serve/app.py) (local web UI, see below) |
+| Proprietary 700K-example human-labeled query-item ad corpus | [`data/download_esci.py`](data/download_esci.py) samples the public [Amazon ESCI](https://github.com/amazon-science/esci-data) query-product relevance dataset |
+| Fine-tuned closed-source LLM teacher, labeling six months of production traffic offline | [`teacher/label_with_ollama.py`](teacher/label_with_ollama.py) — a local model via [Ollama](https://ollama.com) (default `qwen3:14b`), fully offline. [`teacher/label_with_claude.py`](teacher/label_with_claude.py) is an optional cloud alternative. |
+| DistilBERT bi-encoder student — shared encoder weights, CLS pooling, 64-dim projected embeddings, online bilinear scorer | [`model/bi_encoder.py`](model/bi_encoder.py) |
+| Cross-entropy vs. CORAL ordinal-regression loss comparison | [`model/coral_loss.py`](model/coral_loss.py), selectable via `--loss` |
+| AdamW training with validation-accuracy checkpoint selection | [`model/train.py`](model/train.py) |
+| Precision@2 / NDCG@10 evaluation | [`model/evaluate.py`](model/evaluate.py) |
+| Offline embedding cache + cheap online scoring, relevance gate ahead of the auction | [`serve/predict.py`](serve/predict.py) (CLI) and [`serve/app.py`](serve/app.py) (web UI) |
 
-**Fully local by default.** The "big model labels data for the small model"
-split doesn't require a cloud API: the teacher step runs against whatever
-model you already have pulled in Ollama (default `qwen3:14b`), and the
-student (DistilBERT, ~66M params) trains and serves entirely on-device. The
-Claude-API teacher is kept as an opt-in alternative, not the default.
+**Fully local.** The teacher runs against whatever model is already pulled in Ollama; the student (a ~66M-parameter DistilBERT) trains and serves entirely on-device. Nothing in the default configuration calls out to a cloud API.
 
-**Honest scope note:** this is a from-scratch reimplementation of the
-*architecture*, not DoorDash's system or data. It swaps their proprietary ads
-corpus for a public dataset and their fine-tuned closed-source teacher for a
-prompted local model, and it trains on a demo-sized sample (thousands, not
-millions, of pairs) on a single machine rather than distributed across many
-GPUs. The modeling choices (bi-encoder shape, embedding dimension, losses,
-serving split) follow the post directly.
+## Demo
+
+A search-engine-style UI demonstrates the complete funnel — naive keyword retrieval followed by relevance filtering — rather than just the model in isolation.
+
+**Relevance filter off** — raw keyword retrieval, optimized for recall. Every item sharing a word with the query is returned, salt-and-vinegar chips included:
+
+![Unfiltered search results for "salt", showing all keyword matches including irrelevant items like salt & vinegar chips](docs/screenshots/search_unfiltered.png)
+
+**Relevance filter on** — the trained model scores and reranks the same candidates, moving anything predicted irrelevant into a collapsed section (shown expanded above in the first screenshot).
+
+**Comparing student and teacher live** — each result has a "Why?" breakdown showing the small model's score, plus a button to ask the local teacher model for a second opinion on the same pair:
+
+![A result card's expanded panel showing the small model's relevance score alongside a live comparison against the local Ollama teacher model's judgment](docs/screenshots/teacher_comparison.png)
+
+Run it with:
+
+```bash
+python serve/app.py
+# open http://localhost:8000
+```
+
+The backend only talks to the local checkpoint file and to `localhost:11434` (Ollama) — no external network calls.
 
 ## Setup
 
@@ -61,171 +66,79 @@ serving split) follow the post directly.
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Local teacher (default) — needs Ollama running with a model pulled:
-ollama serve                 # if not already running in the background
-ollama pull qwen3:14b        # or any model you already have, e.g. llama3.2
-
-# Optional cloud teacher instead:
-export ANTHROPIC_API_KEY=sk-ant-...
+ollama serve            # if not already running
+ollama pull qwen3:14b   # or any model you already have
 ```
 
-## Run the pipeline
+## Running the pipeline
 
 ```bash
-# Smoke-test everything with no model calls at all (heuristic teacher, 1 epoch):
+# Smoke test, no model calls at all (heuristic teacher, 1 epoch):
 ./scripts/run_pipeline.sh --dry-run
 
-# Real run, fully local (Ollama teacher, the default):
-LIMIT=1500 EPOCHS=5 ./scripts/run_pipeline.sh
+# Full local run:
+LIMIT=1500 EPOCHS=8 ./scripts/run_pipeline.sh
 
-# Real run with the Claude API teacher instead:
-TEACHER=claude LIMIT=1500 EPOCHS=5 ./scripts/run_pipeline.sh
+# With the Claude API as teacher instead:
+TEACHER=claude LIMIT=1500 EPOCHS=8 ./scripts/run_pipeline.sh
 ```
 
 Or step by step:
 
 ```bash
 python data/download_esci.py --limit 1500
-python teacher/label_with_ollama.py --model qwen3:14b --limit 1500   # or --dry-run
-python model/train.py --data data/cache/teacher_labels.jsonl --epochs 5
+python teacher/label_with_ollama.py --model qwen3:14b --limit 1500
+python model/train.py --data data/cache/teacher_labels.jsonl --epochs 8
 python serve/predict.py --query "salt" --candidates data/samples/salt_candidates.json
 ```
 
-`serve/predict.py` prints which candidate ads survive the relevance filter
-and how they'd rank, e.g. for the query "salt": table salt and kosher salt
-rank as highly relevant, "salt & vinegar chips" gets caught as a weak
-keyword-overlap match (exactly the failure mode the blog opens with), and
-milk gets filtered out entirely.
+## Training data: closing the domain gap
 
-## Training data: what actually moved the needle (and what didn't)
+Training on ESCI alone produces a model that behaves inconsistently on the demo catalog — not because ESCI is bad data, but because it's a different style of text: long, specific e-commerce search phrases (*"someday is not a day of the week shirt"*) versus the catalog's short, generic queries (*"salt"*, *"orange"*). Each iteration below was validated against the actual demo catalog, not just the offline metric:
 
-Training on ESCI alone produces a model that's inconsistent on the frontend's
-demo catalog — not because ESCI is bad data, but because ESCI is long,
-specific e-commerce search phrases (`"someday is not a day of the week
-shirt"`) while the catalog and its queries are short and generic (`"salt"`,
-`"orange"`). Three things were tried, in order, testing against the actual
-demo catalog each time rather than trusting the offline validation number
-alone:
+| Attempt | Offline result | Real-world result |
+|---|---|---|
+| More epochs on the original 800 ESCI pairs | Accuracy plateaued at 75% by epoch 4 | No change — textbook overfitting (train loss → 0, val loss climbing) |
+| Synthetic augmentation of the ESCI data ([`data/augment_synthetic.py`](data/augment_synthetic.py)) | Accuracy rose to 87% | No improvement — the validation set was partly grading the synthetic examples' own easiness |
+| Real domain-matched data: every query × item pair from the demo catalog, labeled for real by the local teacher ([`data/build_grocery_domain_pairs.py`](data/build_grocery_domain_pairs.py)) | — | Fixed 2 tested categories, broke 4 others entirely — 71 examples across 11 categories was too thin a per-category signal |
+| Oversampling the domain-matched examples 8× ([`data/merge_training_data.py`](data/merge_training_data.py)) | 85% accuracy | 10 of 11 categories correct; only individual item-level misses remain |
 
-1. **More epochs on the same 800 ESCI pairs** — did nothing. Validation
-   accuracy plateaued at the same 75% it hit by epoch 4; training loss kept
-   dropping toward zero while validation loss climbed. Textbook overfitting,
-   not a fix.
-2. **Synthetic data augmented from the raw ESCI pairs** (label-preserving
-   query/item truncation for the underrepresented classes, plus a small
-   batch of auto-labeled random cross-pairs) — [`data/augment_synthetic.py`](data/augment_synthetic.py).
-   Validation accuracy rose to 87%, but real behavior on the demo catalog
-   didn't improve — if anything some cases got worse (a query that used to
-   show varied scores collapsed to "everything is irrelevant"). The
-   validation number was partly measuring the synthetic examples' own
-   easiness, not real generalization. Kept in the repo since it's a real,
-   reusable technique — just not the fix for *this* problem.
-3. **Real domain-matched labeled data** — [`data/build_grocery_domain_pairs.py`](data/build_grocery_domain_pairs.py)
-   generates every (query, item) pair from the demo catalog's own 11
-   categories crossed with all 55 items, and the local Ollama teacher labels
-   all 605 of them for real. Mixing the ~71 useful pairs (same-category
-   matches, including the deliberate keyword-overlap traps, plus a few
-   genuinely ambiguous cross-category hits) straight into the 800 ESCI pairs
-   improved two hand-tested cases ("salt", "orange") but broke four other
-   categories completely (headphones, candles, fruits, dairy all came back
-   100% wrong) — 71 examples spread across 11 categories inside ~1000 total
-   rows is too thin a signal per category to reliably learn 11 separate
-   associations. **Oversampling** those 71 examples 8x (repeating them in the
-   training file so they carry proportionally more weight) fixed that: full
-   catalog re-test came back correct or reasonable on 10 of the 11
-   categories, with only individual item-level misses left (a coffee mug
-   marked "highly relevant", an unrelated soup for "candles").
+The 85% figure above turned out to be **inflated by a data leak**: oversampling duplicated rows before the train/validation split, letting identical copies of the same example land on both sides. The honest, leak-free accuracy on the same data is **~75%** — and real-world behavior is no worse than the leaky version, which is the actual point: the inflated number never corresponded to better quality, it just looked better on a metric that was quietly cheating.
 
-   That run's 85% validation accuracy turned out to be **inflated by a data
-   leak** (see below) — after fixing it, honest validation accuracy on this
-   same data is **73.2%**, and the real catalog behavior is roughly a wash
-   against the leaky version (some categories better, a couple worse,
-   nothing decisively different). That's the actual point: the leaky 85%
-   never corresponded to better real-world quality, it just *looked* better
-   on a metric that was quietly cheating.
+The fix — split the unique examples first, then oversample only the training side — is implemented in [`data/merge_training_data.py`](data/merge_training_data.py). [`model/train.py`](model/train.py) honors an explicit `"split"` field per row when present, instead of always re-splitting randomly.
 
-[`data/merge_training_data.py`](data/merge_training_data.py) does this
-merge-and-oversample step. One methodological detail it handles that's easy
-to get wrong: **the train/val split has to happen before oversampling, not
-after.** Duplicating a row 8 times and then handing the whole file to a
-random 80/20 split lets some copies land in "train" and others in "val" by
-chance — so the model can be validated on an example it was also trained on,
-quietly inflating the accuracy number. The script splits the *unique*
-examples first, then oversamples only the training side; `model/train.py`
-respects an explicit `"split"` field per row when the whole file carries one,
-instead of re-splitting randomly.
+## Scope and limitations
 
-```bash
-python data/build_grocery_domain_pairs.py
-python teacher/label_with_ollama.py \
-  --in data/raw/grocery_domain_pairs.jsonl \
-  --out data/cache/grocery_domain_labels.jsonl
-python data/merge_training_data.py --repeat 8
-python model/train.py --data data/cache/teacher_labels_merged.jsonl --epochs 8
-```
+This is a from-scratch reimplementation of DoorDash's *architecture*, not their system or data — trained on thousands of examples on a single machine, not the hundreds of thousands to millions DoorDash used across distributed infrastructure. Several shortcuts here would need to be addressed before anything like this reached production:
 
-## Frontend: testing it interactively
-
-```bash
-python serve/app.py
-# open http://localhost:8000
-```
-
-A local search-engine-style UI (FastAPI backend, plain HTML/JS frontend, no
-build step, no CDN dependency) that demonstrates the whole funnel the blog
-describes, not just the model in isolation:
-
-- **Search bar + suggestion chips** run a small built-in demo catalog
-  (`data/samples/demo_catalog.json`, ~30 items across salt/coffee/
-  headphones/birthday-candles/orange/healthy-snacks — several picked to
-  match the blog's own examples) through a **naive keyword retrieval** step
-  first (`serve/app.py`'s `keyword_retrieve`) — recall-optimized, no notion
-  of intent, so it happily retrieves "salt & vinegar chips" for "salt".
-- The **relevance filter toggle** shows the difference this project exists
-  to make: off, you see raw keyword-retrieval results, irrelevant items
-  included; on, the trained SLM scores and reranks the same candidates and
-  moves anything predicted irrelevant into a collapsed "filtered out"
-  section — the same pre-auction gate `serve/predict.py` does from the CLI.
-- Each result card shows a color-coded relevance chip and a **"Why?"**
-  expander with the SLM's score, plus an **"Ask local teacher"** button that
-  calls Ollama live for that one item so you can compare the small model's
-  call against the bigger local model's judgment on the spot.
-- An **Advanced** panel below the results lets you type any custom
-  query/item pair and score it with the SLM or the teacher directly, for
-  testing outside the demo catalog.
-- A status popover shows whether a trained checkpoint is loaded and whether
-  Ollama is reachable.
-
-Nothing here calls out to the internet — the backend only talks to the local
-checkpoint file and to `localhost:11434` (Ollama).
+- **The teacher's labels are unvalidated against human judgment.** We checked agreement against ESCI's own reference labels (50%) but never against real human raters. DoorDash validated their teacher against 700K human labels (86% accuracy) *before* trusting it at scale — that step is what makes the whole approach trustworthy, and it's skipped here.
+- **No held-out test set independent of the tuning loop.** Every dataset here doubled as both what was tuned against and what was reported. Production evaluation needs a test set that's never touched during iteration, plus live A/B testing — offline accuracy is a proxy, not the real quality bar.
+- **Single-run results, no variance estimate.** At this data scale, metrics swing meaningfully between runs; a single seed isn't enough to trust a delta between two approaches.
+- **Dataset scale.** ~1,600 training examples versus DoorDash's 700K+ human-labeled pairs and six months of production traffic.
 
 ## Repo layout
 
 ```
-data/download_esci.py           sample public ESCI query-item pairs
+data/download_esci.py               sample public ESCI query-item pairs
 data/build_grocery_domain_pairs.py  generate demo-catalog-style query x item pairs
-data/merge_training_data.py     leakage-safe merge + oversample of ESCI + domain-matched data
-data/augment_synthetic.py       label-preserving text perturbation (didn't fix the real problem, kept anyway)
-teacher/label_with_ollama.py  LLM teacher (local, default): batch-labels pairs 0/1/2 via Ollama
-teacher/label_with_claude.py  LLM teacher (cloud, optional): same rubric via the Claude API
-model/bi_encoder.py           DistilBERT bi-encoder student
-model/coral_loss.py           CORAL ordinal-regression loss + head
-model/dataset.py              tokenization / batching
-model/train.py                training loop
-model/evaluate.py             accuracy, Precision@2, NDCG@10
-serve/predict.py              CLI: cached-embedding scoring + relevance gate
-serve/app.py                  local web UI backend (FastAPI)
-serve/static/                 local web UI frontend (HTML/CSS/JS)
-scripts/run_pipeline.sh       end-to-end orchestration
+data/merge_training_data.py         leakage-safe merge + oversampling of ESCI + domain-matched data
+data/augment_synthetic.py           label-preserving text perturbation (see "Training data" above)
+teacher/label_with_ollama.py        LLM teacher (local, default): batch-labels pairs via Ollama
+teacher/label_with_claude.py        LLM teacher (cloud, optional): same rubric via the Claude API
+model/bi_encoder.py                 DistilBERT bi-encoder student
+model/coral_loss.py                 CORAL ordinal-regression loss + head
+model/dataset.py                    tokenization / batching
+model/train.py                      training loop
+model/evaluate.py                   accuracy, Precision@2, NDCG@10
+serve/predict.py                    CLI: cached-embedding scoring + relevance gate
+serve/app.py                        web UI backend (FastAPI)
+serve/static/                       web UI frontend (HTML/CSS/JS)
+scripts/run_pipeline.sh             end-to-end orchestration
+docs/screenshots/capture.py         regenerates the screenshots in this README
 ```
 
-## Scaling this up
+## Extending this
 
-- Swap `data/download_esci.py` for your own query-item corpus (any source of
-  `{query, item_text}` pairs works — the teacher doesn't need ESCI's own
-  labels, only text).
-- `model/train.py` runs on a single device (CUDA/MPS/CPU auto-detected);
-  wrapping the model in `torch.nn.parallel.DistributedDataParallel` is the
-  only change needed to go multi-GPU, as the original post does.
-- Swap in a bigger/smaller Ollama model via `--model` on
-  `teacher/label_with_ollama.py` to trade teacher quality for labeling speed.
+- Swap `data/download_esci.py` for your own query-item corpus — the teacher only needs `{query, item_text}` pairs, not pre-existing labels.
+- `model/train.py` runs on a single device (CUDA/MPS/CPU auto-detected); wrapping the model in `torch.nn.parallel.DistributedDataParallel` is the only change needed to go multi-GPU.
+- Swap in a different Ollama model via `--model` on `teacher/label_with_ollama.py` to trade teacher quality for labeling speed.
