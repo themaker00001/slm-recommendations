@@ -57,6 +57,14 @@ function buildCard(item, { dimmed = false } = {}) {
     spTag.textContent = "Sponsored";
     tags.appendChild(spTag);
   }
+  if (item.found_by) {
+    const foundTag = document.createElement("span");
+    const bySemanticOnly = item.found_by.length === 1 && item.found_by[0] === "semantic";
+    foundTag.className = "tag" + (bySemanticOnly ? " semantic-only" : "");
+    foundTag.textContent = bySemanticOnly ? "🧠 semantic match" : "🔍 keyword match";
+    foundTag.title = `Found by: ${item.found_by.join(" + ")}`;
+    tags.appendChild(foundTag);
+  }
 
   const whyBtn = node.querySelector(".card-why");
   const whyPanel = node.querySelector(".card-why-panel");

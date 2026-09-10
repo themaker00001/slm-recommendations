@@ -21,6 +21,7 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from serve.predict import RelevanceServer, RELEVANCE_LABELS  # noqa: E402
 from teacher.label_with_ollama import call_ollama, check_ollama_reachable  # noqa: E402
+from retrieval.semantic_retrieve import SemanticRetriever  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CHECKPOINT_PATH = ROOT / "checkpoints" / "bi_encoder.pt"
@@ -31,6 +32,7 @@ app = FastAPI(title="SLM Relevance Tester")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 _server: RelevanceServer | None = None
+_semantic_retriever: SemanticRetriever | None = None
 CATALOG = json.loads(CATALOG_PATH.read_text())
 
 
@@ -39,6 +41,13 @@ def get_server() -> RelevanceServer | None:
     if _server is None and CHECKPOINT_PATH.exists():
         _server = RelevanceServer(str(CHECKPOINT_PATH))
     return _server
+
+
+def get_semantic_retriever() -> SemanticRetriever:
+    global _semantic_retriever
+    if _semantic_retriever is None:
+        _semantic_retriever = SemanticRetriever(CATALOG)
+    return _semantic_retriever
 
 
 def item_text(item: dict) -> str:
@@ -71,6 +80,27 @@ def keyword_retrieve(query: str, limit: int = 12) -> list[dict]:
             scored.append((matches, item))
     scored.sort(key=lambda pair: -pair[0])
     return [item for _, item in scored[:limit]]
+
+
+def hybrid_retrieve(query: str) -> list[dict]:
+    """Stage 1 of the funnel, recall-oriented: unions naive keyword matches
+    with dense semantic matches (retrieval/semantic_retrieve.py), so an item
+    with no shared word stem -- "Paper Towels" for a "cleaning" query -- can
+    still surface via meaning instead of being invisible to the pipeline
+    before the relevance model ever gets a chance to judge it. Each result
+    carries which method(s) found it, purely for the UI to show its work."""
+    keyword_hits = {item["item_id"]: item for item in keyword_retrieve(query)}
+    semantic_hits = {item["item_id"]: item for item, _ in get_semantic_retriever().retrieve(query)}
+
+    merged = {}
+    for item_id, item in {**keyword_hits, **semantic_hits}.items():
+        found_by = []
+        if item_id in keyword_hits:
+            found_by.append("keyword")
+        if item_id in semantic_hits:
+            found_by.append("semantic")
+        merged[item_id] = {**item, "found_by": found_by}
+    return list(merged.values())
 
 
 class Item(BaseModel):
@@ -117,11 +147,12 @@ def catalog():
 
 @app.post("/api/search")
 def search(req: SearchRequest):
-    """The full funnel in one call: naive keyword retrieval over the demo
-    catalog, then (if a checkpoint is trained) the SLM relevance model scores
-    and, when use_filter is on, filters/ranks the candidates -- the same
-    pre-auction gate serve/predict.py demonstrates from the CLI."""
-    candidates = keyword_retrieve(req.query)
+    """The full funnel in one call: hybrid (keyword + semantic) retrieval
+    over the demo catalog, then (if a checkpoint is trained) the SLM
+    relevance model scores and, when use_filter is on, filters/ranks the
+    candidates -- the same pre-auction gate serve/predict.py demonstrates
+    from the CLI."""
+    candidates = hybrid_retrieve(req.query)
     server = get_server()
 
     results = []

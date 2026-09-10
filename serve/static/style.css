@@ -14,6 +14,8 @@
   --bad: #9a9690;
   --bad-soft: #efeee9;
   --chip-bg: #efece4;
+  --semantic: #3a5aa8;
+  --semantic-soft: #e6ebf7;
   --shadow: 0 1px 2px rgba(20, 18, 14, 0.04), 0 8px 24px rgba(20, 18, 14, 0.06);
 }
 
@@ -34,6 +36,8 @@
     --bad: #8b877f;
     --bad-soft: #2a2b2f;
     --chip-bg: #2a2c31;
+    --semantic: #8fa8e8;
+    --semantic-soft: #232b3d;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
   }
 }
@@ -232,6 +236,7 @@ main { max-width: 900px; margin: 0 auto; padding: 16px 24px 64px; }
   border-radius: 6px;
 }
 .tag.sponsored { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.tag.semantic-only { background: var(--semantic-soft); color: var(--semantic); font-weight: 600; }
 
 .card-why {
   margin-top: auto;

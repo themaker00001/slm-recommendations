@@ -8,3 +8,4 @@ tqdm>=4.66
 requests>=2.31
 fastapi>=0.110
 uvicorn>=0.29
+sentence-transformers>=3.0

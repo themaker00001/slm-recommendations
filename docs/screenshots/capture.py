@@ -32,19 +32,28 @@ with sync_playwright() as p:
     page.wait_for_timeout(200)
     crop_to_content(page, f"{OUT}/search_filtered.png")
 
+    # 1b. "cleaning" query -- shows the semantic-match badge on items the
+    # keyword matcher alone could never find (e.g. "Paper Towels")
+    page.fill("#query", "cleaning")
+    page.click("#search-btn")
+    page.wait_for_selector(".card")
+    page.wait_for_timeout(300)
+    crop_to_content(page, f"{OUT}/semantic_retrieval.png")
+    page.fill("#query", "salt")
+    page.click("#search-btn")
+    page.wait_for_selector(".card")
+    page.wait_for_timeout(300)
+
     # 2. Same query, relevance filter OFF -- raw keyword retrieval
     page.click("#filter-toggle")
     page.wait_for_timeout(300)
     crop_to_content(page, f"{OUT}/search_unfiltered.png")
 
-    # 3. "Why?" panel expanded on a card, showing SLM score
+    # 3. "Why?" panel expanded, then ask-the-local-teacher comparison filled in
     page.click("#filter-toggle")  # back on
     page.wait_for_timeout(300)
     page.click(".card .card-why")
     page.wait_for_timeout(200)
-    crop_to_content(page, f"{OUT}/why_panel.png")
-
-    # 4. Ask-the-local-teacher comparison filled in
     page.click(".card .teacher-btn")
     page.wait_for_selector(".card .teacher-answer strong", timeout=20000)
     page.wait_for_timeout(200)

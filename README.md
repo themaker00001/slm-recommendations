@@ -34,18 +34,23 @@ This project reimplements that architecture end to end, swapping DoorDash's prop
 | AdamW training with validation-accuracy checkpoint selection | [`model/train.py`](model/train.py) |
 | Precision@2 / NDCG@10 evaluation | [`model/evaluate.py`](model/evaluate.py) |
 | Offline embedding cache + cheap online scoring, relevance gate ahead of the auction | [`serve/predict.py`](serve/predict.py) (CLI) and [`serve/app.py`](serve/app.py) (web UI) |
+| Keyword-based retrieval stage (recall-oriented) ahead of relevance filtering | [`serve/app.py`](serve/app.py)'s `hybrid_retrieve` — keyword matching **plus** dense semantic search ([`retrieval/semantic_retrieve.py`](retrieval/semantic_retrieve.py)), so items with no shared vocabulary (e.g. "cleaning" → "paper towels") aren't invisible before the relevance model gets a chance to judge them |
 
 **Fully local.** The teacher runs against whatever model is already pulled in Ollama; the student (a ~66M-parameter DistilBERT) trains and serves entirely on-device. Nothing in the default configuration calls out to a cloud API.
 
 ## Demo
 
-A search-engine-style UI demonstrates the complete funnel — naive keyword retrieval followed by relevance filtering — rather than just the model in isolation.
+A search-engine-style UI demonstrates the complete funnel — hybrid retrieval followed by relevance filtering — rather than just the model in isolation.
 
-**Relevance filter off** — raw keyword retrieval, optimized for recall. Every item sharing a word with the query is returned, salt-and-vinegar chips included:
+**Relevance filter off** — raw retrieval results, optimized for recall. Every item sharing a word with the query is returned, salt-and-vinegar chips included:
 
 ![Unfiltered search results for "salt", showing all keyword matches including irrelevant items like salt & vinegar chips](docs/screenshots/search_unfiltered.png)
 
 **Relevance filter on** — the trained model scores and reranks the same candidates, moving anything predicted irrelevant into a collapsed section (shown expanded above in the first screenshot).
+
+**Semantic retrieval finding what keyword matching can't** — a dense embedding model runs alongside the keyword matcher, so a query like "cleaning" also surfaces items with no shared vocabulary at all — paper towels, laundry detergent — tagged distinctly so the improvement is visible:
+
+![Search results for "cleaning" showing items found via semantic match (paper towels, laundry detergent, dish soap) that keyword matching alone would have missed entirely](docs/screenshots/semantic_retrieval.png)
 
 **Comparing student and teacher live** — each result has a "Why?" breakdown showing the small model's score, plus a button to ask the local teacher model for a second opinion on the same pair:
 
@@ -107,6 +112,12 @@ The 85% figure above turned out to be **inflated by a data leak**: oversampling 
 
 The fix — split the unique examples first, then oversample only the training side — is implemented in [`data/merge_training_data.py`](data/merge_training_data.py). [`model/train.py`](model/train.py) honors an explicit `"split"` field per row when present, instead of always re-splitting randomly.
 
+## Retrieval: finding what keyword matching can't
+
+The demo catalog's naive keyword matcher can only find items that share a word stem with the query — "cleaning" never surfaced paper towels, laundry detergent, or dish soap, because none of those titles contain the word "clean." [`retrieval/semantic_retrieve.py`](retrieval/semantic_retrieve.py) adds dense embedding similarity search alongside it, using a general-purpose sentence-embedding model (`all-MiniLM-L6-v2`) rather than the relevance bi-encoder's own embeddings — the bi-encoder was trained through a bilinear scorer, not a contrastive objective, so nothing guarantees its embeddings behave sensibly under plain cosine similarity, which is exactly the property retrieval needs.
+
+The union of both signals ("cleaning" now returns 6 relevant items instead of 2) is a clear net improvement, but it also surfaces a new failure mode worth naming honestly: expanding recall exposes the relevance model to candidate pairs it was never well-calibrated for. On one query, "Envy Apples" — retrieved only via semantic similarity — was scored "highly relevant" for the query "salt," which is wrong. That's not a retrieval bug; it's the relevance model's blind spot becoming visible now that retrieval can actually reach it. Fixing it would mean the same domain-matched-data treatment described above, applied to the newly-expanded candidate pool.
+
 ## Scope and limitations
 
 This is a from-scratch reimplementation of DoorDash's *architecture*, not their system or data — trained on thousands of examples on a single machine, not the hundreds of thousands to millions DoorDash used across distributed infrastructure. Several shortcuts here would need to be addressed before anything like this reached production:
@@ -130,6 +141,7 @@ model/coral_loss.py                 CORAL ordinal-regression loss + head
 model/dataset.py                    tokenization / batching
 model/train.py                      training loop
 model/evaluate.py                   accuracy, Precision@2, NDCG@10
+retrieval/semantic_retrieve.py      dense embedding retrieval (Stage 1, alongside keyword matching)
 serve/predict.py                    CLI: cached-embedding scoring + relevance gate
 serve/app.py                        web UI backend (FastAPI)
 serve/static/                       web UI frontend (HTML/CSS/JS)

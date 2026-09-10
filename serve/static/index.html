@@ -39,10 +39,12 @@
     <span id="status-ollama" class="status-value">checking…</span>
   </div>
   <p class="status-note">
-    Search runs a naive keyword retrieval over a small demo catalog (recall-first,
-    same as the blog's incumbent retrieval step), then the SLM scores and — when the
-    filter toggle is on — removes/reranks results by predicted relevance, the way it
-    sits before the ad auction in the original design.
+    Search runs hybrid retrieval over a small demo catalog — naive keyword
+    matching plus dense semantic search (a sentence-embedding model finding
+    conceptually related items with no shared words, e.g. "cleaning" →
+    "paper towels") — then the SLM scores and, when the filter toggle is on,
+    removes/reranks results by predicted relevance, the way it sits before
+    the ad auction in the original design.
   </p>
 </div>
 
