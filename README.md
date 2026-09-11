@@ -160,11 +160,22 @@ The trained model recovers each hand-authored persona's preferences cleanly — 
 
 ![Persona selected in the search UI, showing match-percentage badges and results re-ranked for that persona while the relevance-filtered set stays the same](docs/screenshots/personalization.png)
 
+## Closing the fine-tuned-teacher gap
+
+DoorDash's own pipeline for *creating* the teacher looks like this: write a rubric, sample some unlabeled data, have **humans label a seed set** against the rubric, then **fine-tune** a pretrained LLM on that seed set to get the relevance-judging teacher. Every teacher script elsewhere in this repo skips that entirely — `teacher/label_with_ollama.py` and friends just hand a pretrained model the rubric as a *prompt* at inference time and trust its zero-shot judgment. That gap was already named in "Scope and limitations" below; this closes it, honestly rather than by assumption.
+
+- [`data/seed_labels_claude.jsonl`](data/seed_labels_claude.jsonl) is the seed set: 48 query-item pairs, each read and graded against the exact same 0/1/2 rubric by Claude directly — **not independent human raters**. Say that plainly every time this is referenced: an LLM grading examples to fine-tune another LLM doesn't carry DoorDash's actual evidentiary weight (they validated their teacher against 700K *human* labels at 86% accuracy before trusting it). This stands in for that step; it doesn't replicate it.
+- [`teacher/fine_tune_teacher.py`](teacher/fine_tune_teacher.py) LoRA-fine-tunes `Qwen2.5-0.5B-Instruct` (small, ungated, Apache 2.0) on 39 of those examples to predict a bare 0/1/2 digit, holding out 9 for evaluation.
+
+**Result: zero-shot accuracy on the held-out set was 0% — fine-tuned, 55.6%.** Confirmed this wasn't an evaluation bug by inspecting the raw generations directly: the base model reliably outputs a clean single digit (it follows the *format* instruction fine), it's just wrong on the *judgment* every single time before fine-tuning. Six epochs over 39 examples is enough to noticeably move that. This is the clearest, least ambiguous positive result in this whole project, and it's exactly what the diagram claims: a small model's zero-shot relevance judgment is genuinely bad, and even a tiny amount of task-specific fine-tuning — on a seed set this small, this informal — measurably fixes it in a way prompting alone doesn't.
+
+The honest limits: 39 training examples and 9 held-out examples is not a sample size anyone should trust a precise number from — this demonstrates that the mechanism works, not what accuracy a real fine-tuned teacher would reach at DoorDash's scale. And the seed labels are still Claude's judgment, not ground truth.
+
 ## Scope and limitations
 
 This is a from-scratch reimplementation of DoorDash's *architecture*, not their system or data — trained on thousands of examples on a single machine, not the hundreds of thousands to millions DoorDash used across distributed infrastructure. Several shortcuts here would need to be addressed before anything like this reached production:
 
-- **The teacher's labels are unvalidated against human judgment.** We checked agreement against ESCI's own reference labels (50%) but never against real human raters. DoorDash validated their teacher against 700K human labels (86% accuracy) *before* trusting it at scale — that step is what makes the whole approach trustworthy, and it's skipped here.
+- **The production teacher's labels are still unvalidated against real human judgment.** The "Closing the fine-tuned-teacher gap" section above demonstrates the *mechanism* DoorDash uses (fine-tune on a human-labeled seed set) but the 48-example seed set is Claude's own judgment, not independent human raters — DoorDash validated their teacher against 700K real human labels (86% accuracy) before trusting it at scale. That's still the gap between this repo and production-grade trust in the labels.
 - **No held-out test set independent of the tuning loop.** Every dataset here doubled as both what was tuned against and what was reported. Production evaluation needs a test set that's never touched during iteration, plus live A/B testing — offline accuracy is a proxy, not the real quality bar.
 - **Single-run results, no variance estimate.** At this data scale, metrics swing meaningfully between runs; a single seed isn't enough to trust a delta between two approaches.
 - **Dataset scale.** ~1,600 training examples versus DoorDash's 700K+ human-labeled pairs and six months of production traffic.
@@ -180,6 +191,10 @@ data/augment_synthetic.py           label-preserving text perturbation (see "Tra
 teacher/label_with_ollama.py        LLM teacher (local, default): batch-labels pairs via Ollama
 teacher/label_with_claude.py        LLM teacher (cloud, optional): same rubric via the Claude API
 teacher/label_with_ollama_soft.py   soft-label teacher: extracts the teacher's full confidence distribution
+teacher/fine_tune_teacher.py        LoRA fine-tunes a small LLM on the seed set (closes the fine-tuned-teacher gap)
+data/sample_seed_candidates.py      samples the pairs data/build_seed_labels.py's judgments are keyed to
+data/build_seed_labels.py           writes data/seed_labels_claude.jsonl from hand-graded judgments
+data/seed_labels_claude.jsonl       the 48-example seed set itself (Claude-labeled, not human -- see above)
 model/bi_encoder.py                 DistilBERT bi-encoder student
 model/coral_loss.py                 CORAL ordinal-regression loss + head
 model/dataset.py                    tokenization / batching
