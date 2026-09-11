@@ -59,6 +59,12 @@ with sync_playwright() as p:
     page.wait_for_timeout(200)
     crop_to_content(page, f"{OUT}/teacher_comparison.png")
 
+    # 4. Persona selected -- personalization re-ranking + match% badges
+    page.select_option("#persona-select", "home_chef_carlos")
+    page.wait_for_selector(".card .tag.personalized")
+    page.wait_for_timeout(300)
+    crop_to_content(page, f"{OUT}/personalization.png")
+
     browser.close()
 
 print("done")

@@ -22,9 +22,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from serve.predict import RelevanceServer, RELEVANCE_LABELS  # noqa: E402
 from teacher.label_with_ollama import call_ollama, check_ollama_reachable  # noqa: E402
 from retrieval.semantic_retrieve import SemanticRetriever  # noqa: E402
+from personalization.model import PersonalizationModel  # noqa: E402
+from personalization.dataset import item_features, PERSONA_IDS  # noqa: E402
+from personalization.simulate_users import PERSONAS  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CHECKPOINT_PATH = ROOT / "checkpoints" / "bi_encoder.pt"
+PERSONALIZATION_CHECKPOINT_PATH = ROOT / "checkpoints" / "personalization.pt"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 CATALOG_PATH = ROOT / "data" / "samples" / "demo_catalog.json"
 
@@ -33,7 +37,10 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 _server: RelevanceServer | None = None
 _semantic_retriever: SemanticRetriever | None = None
+_personalization_model: PersonalizationModel | None = None
 CATALOG = json.loads(CATALOG_PATH.read_text())
+_CATALOG_PRICES = [item["price"] for item in CATALOG]
+_PRICE_MIN, _PRICE_MAX = min(_CATALOG_PRICES), max(_CATALOG_PRICES)
 
 
 def get_server() -> RelevanceServer | None:
@@ -48,6 +55,25 @@ def get_semantic_retriever() -> SemanticRetriever:
     if _semantic_retriever is None:
         _semantic_retriever = SemanticRetriever(CATALOG)
     return _semantic_retriever
+
+
+def get_personalization_model() -> PersonalizationModel | None:
+    global _personalization_model
+    if _personalization_model is None and PERSONALIZATION_CHECKPOINT_PATH.exists():
+        import torch
+        ckpt = torch.load(PERSONALIZATION_CHECKPOINT_PATH, map_location="cpu", weights_only=False)
+        model = PersonalizationModel(ckpt["num_personas"], ckpt["num_categories"])
+        model.load_state_dict(ckpt["model_state"])
+        model.eval()
+        _personalization_model = model
+    return _personalization_model
+
+
+def personalization_score(model: PersonalizationModel, persona_id: str, item: dict) -> float:
+    import torch
+    persona_idx = torch.tensor([PERSONA_IDS.index(persona_id)])
+    features = torch.tensor([item_features(item["group"], item["price"], _PRICE_MIN, _PRICE_MAX)])
+    return model.engagement_prob(persona_idx, features).item()
 
 
 def item_text(item: dict) -> str:
@@ -122,6 +148,7 @@ class TeacherRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     use_filter: bool = True
+    persona: str | None = None
 
 
 @app.get("/")
@@ -145,15 +172,31 @@ def catalog():
     return {"catalog": CATALOG, "suggested_queries": groups}
 
 
+@app.get("/api/personas")
+def personas():
+    return {
+        "personas": [
+            {"id": pid, "label": p["label"], "blurb": p["blurb"]}
+            for pid, p in PERSONAS.items()
+        ],
+        "loaded": get_personalization_model() is not None,
+    }
+
+
 @app.post("/api/search")
 def search(req: SearchRequest):
     """The full funnel in one call: hybrid (keyword + semantic) retrieval
     over the demo catalog, then (if a checkpoint is trained) the SLM
     relevance model scores and, when use_filter is on, filters/ranks the
     candidates -- the same pre-auction gate serve/predict.py demonstrates
-    from the CLI."""
+    from the CLI. If a persona is given and the personalization model is
+    trained, the surviving (relevant) results are additionally re-ranked by
+    predicted engagement for that persona -- relevance decides what's
+    eligible, personalization decides the order, matching the blog's own
+    "relevance gates, a separate signal ranks" split."""
     candidates = hybrid_retrieve(req.query)
     server = get_server()
+    persona_model = get_personalization_model() if req.persona else None
 
     results = []
     for item in candidates:
@@ -166,15 +209,28 @@ def search(req: SearchRequest):
         else:
             entry.update(predicted_label=None, label_name=None,
                          relevance_score=None, kept=True)
+
+        if persona_model is not None and req.persona in PERSONA_IDS:
+            entry["personalization_score"] = personalization_score(persona_model, req.persona, item)
+        else:
+            entry["personalization_score"] = None
+
         results.append(entry)
 
-    if server is not None and req.use_filter:
+    if persona_model is not None and req.persona in PERSONA_IDS:
+        # Relevance already decided eligibility; personalization only
+        # reorders within that -- irrelevant items never get promoted back
+        # by a persona liking their category.
+        results.sort(key=lambda r: (r["kept"], r["personalization_score"] or 0), reverse=True)
+    elif server is not None and req.use_filter:
         results.sort(key=lambda r: r["relevance_score"], reverse=True)
 
     return {
         "query": req.query,
         "use_filter": req.use_filter,
+        "persona": req.persona,
         "checkpoint_loaded": server is not None,
+        "personalization_loaded": persona_model is not None,
         "results": results,
     }
 

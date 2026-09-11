@@ -9,6 +9,8 @@ const emptyState = document.getElementById("empty-state");
 const resultCount = document.getElementById("result-count");
 const cardTemplate = document.getElementById("card-template");
 const suggestedEl = document.getElementById("suggested");
+const personaSelect = document.getElementById("persona-select");
+const personaBlurb = document.getElementById("persona-blurb");
 
 let checkpointLoaded = false;
 
@@ -57,6 +59,12 @@ function buildCard(item, { dimmed = false } = {}) {
     spTag.textContent = "Sponsored";
     tags.appendChild(spTag);
   }
+  if (item.personalization_score != null) {
+    const persTag = document.createElement("span");
+    persTag.className = "tag personalized";
+    persTag.textContent = `👤 ${(item.personalization_score * 100).toFixed(0)}% match`;
+    tags.appendChild(persTag);
+  }
   if (item.found_by) {
     const foundTag = document.createElement("span");
     const bySemanticOnly = item.found_by.length === 1 && item.found_by[0] === "semantic";
@@ -69,9 +77,13 @@ function buildCard(item, { dimmed = false } = {}) {
   const whyBtn = node.querySelector(".card-why");
   const whyPanel = node.querySelector(".card-why-panel");
   if (item.relevance_score != null) {
+    const personalizationLine = item.personalization_score != null
+      ? `Predicted engagement for this persona: <strong>${(item.personalization_score * 100).toFixed(0)}%</strong><br>`
+      : "";
     whyPanel.innerHTML = `
       SLM relevance score: <strong>${item.relevance_score.toFixed(2)}</strong> / 2.0<br>
       Predicted label: <strong>${item.label_name}</strong><br>
+      ${personalizationLine}
       <button class="teacher-btn">Ask local teacher</button>
       <div class="teacher-answer"></div>
     `;
@@ -173,13 +185,36 @@ async function runSearch() {
   resultCount.textContent = "Searching…";
   emptyState.hidden = true;
 
+  const persona = personaSelect.value || null;
   const resp = await fetch("/api/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, use_filter: filterToggle.checked }),
+    body: JSON.stringify({ query, use_filter: filterToggle.checked, persona }),
   });
   const data = await resp.json();
   renderResults(data);
+}
+
+async function loadPersonas() {
+  const resp = await fetch("/api/personas");
+  const data = await resp.json();
+  for (const p of data.personas) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.label;
+    opt.dataset.blurb = p.blurb;
+    personaSelect.appendChild(opt);
+  }
+  personaSelect.addEventListener("change", () => {
+    const opt = personaSelect.selectedOptions[0];
+    if (opt.dataset.blurb) {
+      personaBlurb.textContent = `${opt.textContent} shops for: ${opt.dataset.blurb}`;
+      personaBlurb.hidden = false;
+    } else {
+      personaBlurb.hidden = true;
+    }
+    runSearch();
+  });
 }
 
 async function loadCatalogSuggestions() {
@@ -279,6 +314,7 @@ function init() {
   initAdvancedPanel();
   refreshStatus();
   loadCatalogSuggestions();
+  loadPersonas();
   runSearch();
 }
 

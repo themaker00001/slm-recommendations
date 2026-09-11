@@ -56,6 +56,8 @@ A search-engine-style UI demonstrates the complete funnel — hybrid retrieval f
 
 ![A result card's expanded panel showing the small model's relevance score alongside a live comparison against the local Ollama teacher model's judgment](docs/screenshots/teacher_comparison.png)
 
+**Picking a persona** re-ranks the relevance-filtered results by simulated engagement (see [Personalization](#personalization-a-second-signal-alongside-relevance) below) without changing which items are eligible in the first place.
+
 Run it with:
 
 ```bash
@@ -139,6 +141,25 @@ Two natural follow-ups to that conclusion, both tested rather than assumed:
 
 Net conclusion: real distillation changes *what kind of mistakes* the model makes when the teacher has genuine uncertainty to offer, but doesn't move overall accuracy in either configuration tested. Whether that trade (fewer 0/1 misses, more confident 2 calls) is actually preferable depends on which error type costs more in the product it's serving — accuracy alone doesn't settle it.
 
+## Personalization: a second signal alongside relevance
+
+Everything above is deliberately **user-agnostic** — the relevance model answers "does this item match the query's intent," the same answer for every user, which is the whole point of separating it from personalization in the first place (the blog's own framing: keyword-driven personalization alone can't fix a relevance problem, since amplifying a user's existing preferences just amplifies bad keyword matches too). Personalization is a second, independent signal that runs in parallel and only affects *ranking* among results relevance already approved — never what's eligible in the first place.
+
+[`personalization/`](personalization/) implements this as its own small model, since there's no real user or interaction data to learn from here:
+
+- [`personalization/simulate_users.py`](personalization/simulate_users.py) hand-authors 6 personas (e.g. "Tech Enthusiast Tariq: headphones and electronics, barely shops groceries") as category-preference and price-sensitivity vectors, then simulates noisy engagement ("would this persona click this item?") across the whole catalog — a labeled dataset to train against, standing in for real clickstream data. **This is the load-bearing honesty point of the whole feature**: every number downstream is only as real as these hand-authored personas, not evidence about actual user behavior.
+- [`personalization/model.py`](personalization/model.py) is a small two-tower model — a learned embedding per persona (standard collaborative-filtering style, since there's no natural-language description of a user the way there is a search query) combined with an item feature vector (category + normalized price) via dot product — trained with plain binary cross-entropy on the simulated interactions ([`personalization/train.py`](personalization/train.py)).
+- `serve/app.py`'s `/api/search` takes an optional `persona`: relevance still decides which items are eligible (`kept`), exactly as before; personalization only re-sorts within that eligible set.
+
+```bash
+python personalization/simulate_users.py   # regenerate the simulated interaction data
+python personalization/train.py            # retrain -> checkpoints/personalization.pt
+```
+
+The trained model recovers each hand-authored persona's preferences cleanly — querying it directly gives Tariq 98.8% predicted engagement on wireless headphones and 0.7% on birthday candles, matching the intended design. In the running app, switching personas for the same query visibly re-ranks the same relevant results and changes the "match %" badge substantially (a "salt" search shows Home Chef Carlos at 72–73% match on real salt products, Tech Enthusiast Tariq at 1–2% on the identical items) — while the *set* of results stays exactly what relevance already approved:
+
+![Persona selected in the search UI, showing match-percentage badges and results re-ranked for that persona while the relevance-filtered set stays the same](docs/screenshots/personalization.png)
+
 ## Scope and limitations
 
 This is a from-scratch reimplementation of DoorDash's *architecture*, not their system or data — trained on thousands of examples on a single machine, not the hundreds of thousands to millions DoorDash used across distributed infrastructure. Several shortcuts here would need to be addressed before anything like this reached production:
@@ -147,6 +168,7 @@ This is a from-scratch reimplementation of DoorDash's *architecture*, not their 
 - **No held-out test set independent of the tuning loop.** Every dataset here doubled as both what was tuned against and what was reported. Production evaluation needs a test set that's never touched during iteration, plus live A/B testing — offline accuracy is a proxy, not the real quality bar.
 - **Single-run results, no variance estimate.** At this data scale, metrics swing meaningfully between runs; a single seed isn't enough to trust a delta between two approaches.
 - **Dataset scale.** ~1,600 training examples versus DoorDash's 700K+ human-labeled pairs and six months of production traffic.
+- **Personalization runs entirely on simulated users.** There's no real interaction data anywhere in this project; the personas and their "engagement" are hand-authored, not observed. The model architecture and its ranking behavior are real — what it's ranking *for* is not.
 
 ## Repo layout
 
@@ -157,12 +179,19 @@ data/merge_training_data.py         leakage-safe merge + oversampling of ESCI + 
 data/augment_synthetic.py           label-preserving text perturbation (see "Training data" above)
 teacher/label_with_ollama.py        LLM teacher (local, default): batch-labels pairs via Ollama
 teacher/label_with_claude.py        LLM teacher (cloud, optional): same rubric via the Claude API
+teacher/label_with_ollama_soft.py   soft-label teacher: extracts the teacher's full confidence distribution
 model/bi_encoder.py                 DistilBERT bi-encoder student
 model/coral_loss.py                 CORAL ordinal-regression loss + head
 model/dataset.py                    tokenization / batching
-model/train.py                      training loop
+model/train.py                      training loop (hard labels)
+model/distill_dataset.py            dataset for soft-label training
+model/distill_loss.py               temperature-scaled distillation loss
+model/train_distill.py              training loop (real distillation, segregated from model/train.py)
 model/evaluate.py                   accuracy, Precision@2, NDCG@10
 retrieval/semantic_retrieve.py      dense embedding retrieval (Stage 1, alongside keyword matching)
+personalization/simulate_users.py   hand-authored personas + simulated engagement data
+personalization/model.py            two-tower persona/item engagement model
+personalization/train.py            training loop
 serve/predict.py                    CLI: cached-embedding scoring + relevance gate
 serve/app.py                        web UI backend (FastAPI)
 serve/static/                       web UI frontend (HTML/CSS/JS)

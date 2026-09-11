@@ -16,6 +16,8 @@
   --chip-bg: #efece4;
   --semantic: #3a5aa8;
   --semantic-soft: #e6ebf7;
+  --personal: #7a4ca0;
+  --personal-soft: #f0e7f7;
   --shadow: 0 1px 2px rgba(20, 18, 14, 0.04), 0 8px 24px rgba(20, 18, 14, 0.06);
 }
 
@@ -38,6 +40,8 @@
     --chip-bg: #2a2c31;
     --semantic: #8fa8e8;
     --semantic-soft: #232b3d;
+    --personal: #c9a3e6;
+    --personal-soft: #2e2338;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
   }
 }
@@ -163,9 +167,25 @@ main { max-width: 900px; margin: 0 auto; padding: 16px 24px 64px; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 8px 0 16px;
+  margin: 8px 0 8px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .result-count { color: var(--muted); font-size: 0.88rem; }
+
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+#persona-select { font-size: 0.85rem; padding: 6px 10px; }
+
+.persona-blurb {
+  margin: 0 0 16px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-style: italic;
+}
 
 .filter-toggle {
   display: flex;
@@ -237,6 +257,7 @@ main { max-width: 900px; margin: 0 auto; padding: 16px 24px 64px; }
 }
 .tag.sponsored { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .tag.semantic-only { background: var(--semantic-soft); color: var(--semantic); font-weight: 600; }
+.tag.personalized { background: var(--personal-soft); color: var(--personal); font-weight: 600; }
 
 .card-why {
   margin-top: auto;

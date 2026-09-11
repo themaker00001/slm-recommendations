@@ -51,11 +51,17 @@
 <main>
   <div class="toolbar">
     <div class="result-count" id="result-count"></div>
-    <label class="filter-toggle">
-      <input type="checkbox" id="filter-toggle" checked>
-      <span>Relevance filter</span>
-    </label>
+    <div class="toolbar-controls">
+      <select id="persona-select">
+        <option value="">No personalization</option>
+      </select>
+      <label class="filter-toggle">
+        <input type="checkbox" id="filter-toggle" checked>
+        <span>Relevance filter</span>
+      </label>
+    </div>
   </div>
+  <p id="persona-blurb" class="persona-blurb" hidden></p>
 
   <div id="empty-state" class="empty-state">
     <div class="empty-emoji">🛒</div>
